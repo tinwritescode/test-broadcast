@@ -94,27 +94,38 @@ function App() {
   };
 
   const requestStorageAccess = async () => {
-    const hasAccess = await hasCookieAccess();
-    if (hasAccess) {
-      console.log("hasAccess", true);
-    } else {
-      console.log("hasAccess", false);
-    }
+    // Set a hasAccess boolean variable which defaults to false.
+    let hasAccess = false;
 
-    document.requestStorageAccess().then(
-      (handle) => {
-        console.log("localStorage access granted");
-        console.log(`handle before:`, handle);
-        // @ts-expect-error wrongly erroring on setItem
-        handle.localStorage.setItem("foo", "bar");
-        // @ts-expect-error wrongly erroring on getItem
-        console.log(`setItem result:`, handle.localStorage.getItem("foo"));
-        console.log(`handle after:`, handle);
-      },
-      () => {
-        console.log("localStorage access denied");
+    async function handleCookieAccessInit() {
+      if (!document.hasStorageAccess) {
+        // Storage Access API is not supported so best we can do is
+        // hope it's an older browser that doesn't block 3P cookies.
+        hasAccess = true;
+      } else {
+        // Check whether access has been granted using the Storage Access API.
+        hasAccess = await document.hasStorageAccess();
+        if (!hasAccess) {
+          try {
+            await document.requestStorageAccess();
+            hasAccess = await document.hasStorageAccess();
+            console.log("Storage access granted");
+          } catch (err) {
+            // Access was not granted and it may be gated behind an interaction
+            console.log("Storage access not granted");
+            return;
+          }
+        }
       }
-    );
+      if (hasAccess) {
+        // Use the cookies.
+        localStorage.setItem(
+          "cross-origin-test",
+          "This should be in unpartitioned storage"
+        );
+      }
+    }
+    await handleCookieAccessInit();
   };
 
   const requestStorageAccessWithLocalStorage = async () => {
